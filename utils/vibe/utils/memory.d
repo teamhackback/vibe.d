@@ -21,11 +21,11 @@ import std.exception : enforceEx;
 import std.traits;
 import std.algorithm;
 
-Allocator defaultAllocator() nothrow
+Allocator defaultAllocator() @safe nothrow
 {
 	version(VibeManualMemoryManagement){
 		return manualAllocator();
-	} else {
+	} else return () @trusted {
 		static __gshared Allocator alloc;
 		if (!alloc) {
 			alloc = new GCAllocator;
@@ -34,13 +34,13 @@ Allocator defaultAllocator() nothrow
 			alloc = new LockAllocator(alloc);
 		}
 		return alloc;
-	}
+	} ();
 }
 
-Allocator manualAllocator() nothrow
+Allocator manualAllocator() @trusted nothrow
 {
 	static __gshared Allocator alloc;
-	if( !alloc ){
+	if (!alloc) {
 		alloc = new MallocAllocator;
 		alloc = new AutoFreeListAllocator(alloc);
 		//alloc = new DebugAllocator(alloc);
@@ -49,7 +49,7 @@ Allocator manualAllocator() nothrow
 	return alloc;
 }
 
-Allocator threadLocalAllocator() nothrow
+Allocator threadLocalAllocator() @safe nothrow
 {
 	static Allocator alloc;
 	if (!alloc) {
@@ -61,7 +61,7 @@ Allocator threadLocalAllocator() nothrow
 	return alloc;
 }
 
-Allocator threadLocalManualAllocator() nothrow
+Allocator threadLocalManualAllocator() @safe nothrow
 {
 	static Allocator alloc;
 	if (!alloc) {
@@ -149,7 +149,7 @@ class LockAllocator : Allocator {
 	private {
 		Allocator m_base;
 	}
-	this(Allocator base) nothrow { m_base = base; }
+	this(Allocator base) nothrow @safe { m_base = base; }
 	void[] alloc(size_t sz) {
 		static if (!synchronizedIsNothrow)
 			scope (failure) assert(0, "Internal error: function should be nothrow");
@@ -191,7 +191,7 @@ final class DebugAllocator : Allocator {
 		size_t m_maxBytes;
 	}
 
-	this(Allocator base_allocator) nothrow
+	this(Allocator base_allocator) nothrow @safe
 	{
 		import std.experimental.allocator : allocatorObject;
 		import std.experimental.allocator.mallocator : Mallocator;
@@ -332,7 +332,7 @@ final class AutoFreeListAllocator : Allocator {
 		Allocator m_baseAlloc;
 	}
 
-	this(Allocator base_allocator) nothrow
+	this(Allocator base_allocator) nothrow @safe
 	{
 		m_baseAlloc = base_allocator;
 		foreach (i; iotaTuple!freeListCount)
@@ -425,14 +425,14 @@ final class PoolAllocator : Allocator {
 		size_t m_poolSize;
 	}
 
-	this(size_t pool_size, Allocator base) nothrow
+	this(size_t pool_size, Allocator base) @safe nothrow
 	{
 		m_poolSize = pool_size;
 		m_baseAllocator = base;
 	}
 
 	@property size_t totalSize()
-	{
+	@safe nothrow @nogc {
 		size_t amt = 0;
 		for (auto p = m_fullPools; p; p = p.next)
 			amt += p.data.length;
@@ -442,7 +442,7 @@ final class PoolAllocator : Allocator {
 	}
 
 	@property size_t allocatedSize()
-	{
+	@safe nothrow @nogc {
 		size_t amt = 0;
 		for (auto p = m_fullPools; p; p = p.next)
 			amt += p.data.length;
@@ -569,7 +569,7 @@ nothrow:
 	}
 
 	this(size_t elem_size, Allocator base_allocator)
-	{
+	@safe nothrow {
 		assert(elem_size >= size_t.sizeof);
 		m_elemSize = elem_size;
 		m_baseAlloc = base_allocator;
@@ -684,6 +684,8 @@ template AllocSize(T)
 
 struct FreeListRef(T, bool INIT = true)
 {
+	@safe:
+
 	alias ObjAlloc = FreeListObjectAlloc!(T, true, INIT, int);
 	enum ElemSize = AllocSize!T;
 
@@ -700,7 +702,7 @@ struct FreeListRef(T, bool INIT = true)
 	{
 		//logInfo("refalloc %s/%d", T.stringof, ElemSize);
 		FreeListRef ret;
-		ret.m_object = ObjAlloc.alloc(args);
+		ret.m_object = () @trusted { return ObjAlloc.alloc(args); } ();
 		ret.refCount = 1;
 		return ret;
 	}
@@ -739,7 +741,7 @@ struct FreeListRef(T, bool INIT = true)
 		checkInvariants();
 		if (m_object) {
 			if (--this.refCount == 0)
-				ObjAlloc.free(m_object);
+				() @trusted { ObjAlloc.free(m_object); } ();
 		}
 
 		m_object = null;
@@ -751,7 +753,7 @@ struct FreeListRef(T, bool INIT = true)
 	alias get this;
 
 	private @property ref int refCount()
-	const {
+	const @trusted {
 		auto ptr = cast(ubyte*)cast(void*)m_object;
 		ptr += ElemSize;
 		return *cast(int*)ptr;
