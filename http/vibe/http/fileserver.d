@@ -419,7 +419,7 @@ private void sendFileImpl(scope HTTPServerRequest req, scope HTTPServerResponse 
 
 	if (prange) {
 		fil.seek(rangeStart);
-		res.bodyWriter.write(fil, rangeEnd - rangeStart + 1);
+		res.bodyWriter.write(fil.asInterface!RandomAccessStream, rangeEnd - rangeStart + 1);
 		logTrace("partially sent file %d-%d, %s!", rangeStart, rangeEnd, res.headers["Content-Type"]);
 	} else {
 		if (pce && !encodedFilepath.length)
