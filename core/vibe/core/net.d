@@ -18,16 +18,7 @@ import core.time;
 import std.exception;
 import std.functional;
 import std.string;
-version(Windows) {
-	static if (__VERSION__ >= 2070)
-		import std.c.windows.winsock;
-	else
-		import core.sys.windows.winsock2;
-}
-version(Posix)
-{
-	import core.sys.posix.sys.un;
-}
+
 
 @safe:
 
@@ -110,27 +101,27 @@ TCPListener listenTCP_s(ushort port, void function(TCPConnection stream) @safe c
 TCPConnection connectTCP(string host, ushort port, string bind_interface = null, ushort bind_port = 0)
 {
 	NetworkAddress addr = resolveHost(host);
-	if (addr.family != AF_UNIX)
+	if (addr.family != AddressFamily.UNIX)
 		addr.port = port;
 	NetworkAddress bind_address;
 	if (bind_interface.length) bind_address = resolveHost(bind_interface, addr.family);
 	else {
 		bind_address.family = addr.family;
-		if (bind_address.family == AF_INET) bind_address.sockAddrInet4.sin_addr.s_addr = 0;
-		else if (bind_address.family != AF_UNIX) bind_address.sockAddrInet6.sin6_addr.s6_addr[] = 0;
+		if (bind_address.family == AddressFamily.INET) bind_address.sockAddrInet4.sin_addr.s_addr = 0;
+		else if (bind_address.family != AddressFamily.UNIX) bind_address.sockAddrInet6.sin6_addr.s6_addr[] = 0;
 	}
-	if (addr.family != AF_UNIX)
+	if (addr.family != AddressFamily.UNIX)
 		bind_address.port = bind_port;
 	return getEventDriver().connectTCP(addr, bind_address);
 }
 /// ditto
 TCPConnection connectTCP(NetworkAddress addr, NetworkAddress bind_address = anyAddress)
 {
-	if (bind_address.family == AF_UNSPEC) {
+	if (bind_address.family == AddressFamily.UNSPEC) {
 		bind_address.family = addr.family;
-		if (bind_address.family == AF_INET) bind_address.sockAddrInet4.sin_addr.s_addr = 0;
-		else if (bind_address.family != AF_UNIX) bind_address.sockAddrInet6.sin6_addr.s6_addr[] = 0;
-		if (bind_address.family != AF_UNIX)
+		if (bind_address.family == AddressFamily.INET) bind_address.sockAddrInet4.sin_addr.s_addr = 0;
+		else if (bind_address.family != AddressFamily.UNIX) bind_address.sockAddrInet6.sin6_addr.s6_addr[] = 0;
+		if (bind_address.family != AddressFamily.UNIX)
 			bind_address.port = 0;
 	}
 	enforce(addr.family == bind_address.family, "Destination address and bind address have different address families.");
@@ -149,13 +140,10 @@ UDPConnection listenUDP(ushort port, string bind_address = "0.0.0.0")
 NetworkAddress anyAddress()
 {
 	NetworkAddress ret;
-	ret.family = AF_UNSPEC;
+	ret.family = AddressFamily.UNSPEC;
 	return ret;
 }
 
-version(VibeLibasyncDriver) {
-	public import libasync.events : NetworkAddress;
-} else {
 /**
 	Represents a network/socket address.
 
@@ -164,6 +152,17 @@ version(VibeLibasyncDriver) {
 	`sockAddrInet4`/`sockAddrInet6`/`sockAddrUnix`.
 */
 struct NetworkAddress {
+	version(Windows) {
+		static if (__VERSION__ >= 2070)
+			import core.sys.windows.winsock2 : sockaddr, sockaddr_in, sockaddr_in6;
+		else
+			import std.c.windows.winsock : sockaddr, sockaddr_in, sockaddr_in6;
+	}
+	version(Posix)
+	{
+		import core.sys.posix.sys.un : sockaddr_un;
+	}
+
 	@safe:
 
 	private union {
@@ -172,6 +171,32 @@ struct NetworkAddress {
 		sockaddr_in addr_ip4;
 		sockaddr_in6 addr_ip6;
 	}
+
+	version(VibeLibasyncDriver) {
+		static import libasync.events;
+		this(libasync.events.NetworkAddress addr)
+		@trusted {
+			this.family = addr.family;
+			switch (addr.family) {
+				default: assert(false, "Got unsupported address family from libasync.");
+				case AddressFamily.INET: this.addr_ip4 = *addr.sockAddrInet4; break;
+				case AddressFamily.INET6: this.addr_ip6 = *addr.sockAddrInet6; break;
+				version (Posix) {
+					case AddressFamily.UNIX: this.addr_unix = *addr.sockAddrUnix; break;
+				}
+			}
+		}
+
+		T opCast(T)() @trusted
+			if (is(T == libasync.events.NetworkAddress))
+		{
+			T ret;
+			ret.family = this.family;
+			(cast(ubyte*)ret.sockAddr)[0 .. this.sockAddrLen] = (cast(ubyte*)this.sockAddr)[0 .. this.sockAddrLen];
+			return ret;
+		}
+	}
+
 
 	/** Family of the socket address.
 	*/
@@ -188,8 +213,8 @@ struct NetworkAddress {
 		ushort nport;
 		switch (this.family) {
 			default: assert(false, "port() called for invalid address family.");
-			case AF_INET: nport = addr_ip4.sin_port; break;
-			case AF_INET6: nport = addr_ip6.sin6_port; break;
+			case AddressFamily.INET: nport = addr_ip4.sin_port; break;
+			case AddressFamily.INET6: nport = addr_ip6.sin6_port; break;
 		}
 		return () @trusted { return ntoh(nport); } ();
 	}
@@ -199,8 +224,8 @@ struct NetworkAddress {
 		auto nport = () @trusted { return hton(val); } ();
 		switch (this.family) {
 			default: assert(false, "port() called for invalid address family.");
-			case AF_INET: addr_ip4.sin_port = nport; break;
-			case AF_INET6: addr_ip6.sin6_port = nport; break;
+			case AddressFamily.INET: addr_ip4.sin_port = nport; break;
+			case AddressFamily.INET6: addr_ip6.sin6_port = nport; break;
 		}
 	}
 
@@ -215,24 +240,24 @@ struct NetworkAddress {
 		switch (this.family) {
 			default: assert(false, "sockAddrLen() called for invalid address family.");
 			version (Posix) {
-				case AF_UNIX: return addr_unix.sizeof;
+				case AddressFamily.UNIX: return addr_unix.sizeof;
 			}
-			case AF_INET: return addr_ip4.sizeof;
-			case AF_INET6: return addr_ip6.sizeof;
+			case AddressFamily.INET: return addr_ip4.sizeof;
+			case AddressFamily.INET6: return addr_ip6.sizeof;
 		}
 	}
 
 	@property inout(sockaddr_in)* sockAddrInet4() inout pure nothrow
-		in { assert (family == AF_INET); }
+		in { assert (family == AddressFamily.INET); }
 		body { return &addr_ip4; }
 
 	@property inout(sockaddr_in6)* sockAddrInet6() inout pure nothrow
-		in { assert (family == AF_INET6); }
+		in { assert (family == AddressFamily.INET6); }
 		body { return &addr_ip6; }
 
 	version (Posix) {
 		@property inout(sockaddr_un)* sockAddrUnix() inout pure nothrow
-			in { assert (family == AF_UNIX); }
+			in { assert (family == AddressFamily.UNIX); }
 			body { return &addr_unix; }
 	}
 
@@ -255,11 +280,11 @@ struct NetworkAddress {
 
 		switch (this.family) {
 			default: assert(false, "toAddressString() called for invalid address family.");
-			case AF_INET: {
+			case AddressFamily.INET: {
 				ubyte[4] ip = () @trusted { return (cast(ubyte*)&addr_ip4.sin_addr.s_addr)[0 .. 4]; } ();
 				sink.formattedWrite("%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
 				} break;
-			case AF_INET6: {
+			case AddressFamily.INET6: {
 				ubyte[16] ip = addr_ip6.sin6_addr.s6_addr;
 				foreach (i; 0 .. 8) {
 					if (i > 0) sink(":");
@@ -268,7 +293,7 @@ struct NetworkAddress {
 				}
 				} break;
 			version (Posix) {
-				case AF_UNIX:
+				case AddressFamily.UNIX:
 					import std.traits : hasMember;
 					static if (hasMember!(sockaddr_un, "sun_len"))
 						sink.formattedWrite("%s",() @trusted { return cast(char[])addr_unix.sun_path[0..addr_unix.sun_len]; } ());
@@ -294,35 +319,32 @@ struct NetworkAddress {
 		import std.format : formattedWrite;
 		switch (this.family) {
 			default: assert(false, "toString() called for invalid address family.");
-			case AF_INET:
+			case AddressFamily.INET:
 				toAddressString(sink);
 				sink.formattedWrite(":%s", port);
 				break;
-			case AF_INET6:
+			case AddressFamily.INET6:
 				sink("[");
 				toAddressString(sink);
 				sink.formattedWrite("]:%s", port);
 				break;
-			case AF_UNIX:
+			case AddressFamily.UNIX:
 				toAddressString(sink);
 				break;
 		}
 	}
 
-	version(Have_libev) {}
-	else {
-		unittest {
-			void test(string ip) {
-				auto res = () @trusted { return resolveHost(ip, AF_UNSPEC, false); } ().toAddressString();
-				assert(res == ip,
-					   "IP "~ip~" yielded wrong string representation: "~res);
-			}
-			test("1.2.3.4");
-			test("102:304:506:708:90a:b0c:d0e:f10");
+	unittest {
+		void test(string ip) {
+			auto res = () @trusted { return resolveHost(ip, AddressFamily.UNSPEC, false); } ().toAddressString();
+			assert(res == ip,
+				   "IP "~ip~" yielded wrong string representation: "~res);
 		}
+		test("1.2.3.4");
+		test("102:304:506:708:90a:b0c:d0e:f10");
 	}
 }
-}
+
 
 /**
 	Represents a single TCP connection.
