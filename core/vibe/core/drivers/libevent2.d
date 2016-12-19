@@ -863,7 +863,7 @@ final class Libevent2FileDescriptorEvent : Libevent2Object, FileDescriptorEvent 
 		}
 
 		while ((m_activeEvents & which) == Trigger.none) {
-			if (!m_persistent) event_add(m_event, null);
+			if (!m_persistent) () @trusted { event_add(m_event, null); } ();
 			getThreadLibeventDriverCore().yieldForEvent();
 		}
 		return m_activeEvents & which;
@@ -884,7 +884,7 @@ final class Libevent2FileDescriptorEvent : Libevent2Object, FileDescriptorEvent 
 		m_driver.rearmTimer(tm, timeout, false);
 
 		while ((m_activeEvents & which) == Trigger.none) {
-			if (!m_persistent) event_add(m_event, null);
+			if (!m_persistent) () @trusted { event_add(m_event, null); } ();
 			getThreadLibeventDriverCore().yieldForEvent();
 			if (!m_driver.isTimerPending(tm)) break;
 		}

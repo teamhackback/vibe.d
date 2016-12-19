@@ -136,9 +136,12 @@ FileStream createTempFile(string suffix = null)
 {
 	version(Windows){
 		import std.conv : to;
-		char[L_tmpnam] tmp;
-		tmpnam(tmp.ptr);
-		auto tmpname = to!string(tmp.ptr);
+		string tmpname;
+		() @trusted {
+			char[L_tmpnam] tmp;
+			tmpnam(tmp.ptr);
+			tmpname = to!string(tmp.ptr);
+		} ();
 		if( tmpname.startsWith("\\") ) tmpname = tmpname[1 .. $];
 		tmpname ~= suffix;
 		return openFile(tmpname, FileMode.createTrunc);

@@ -117,16 +117,16 @@ final class ThreadedFileStream : FileStream {
 			m_size = .lseek(m_fileDescriptor, 0, SEEK_END);
 		} else {
 			stat_t st;
-			fstat(m_fileDescriptor, &st);
+			() @trusted { fstat(m_fileDescriptor, &st); } ();
 			m_size = st.st_size;
 
 			// (at least) on windows, the created file is write protected
 			version(Windows){
 				if( mode == FileMode.createTrunc )
-					chmod(path.toNativeString().toStringz(), S_IREAD|S_IWRITE);
+					() @trusted { chmod(path.toNativeString().toStringz(), S_IREAD|S_IWRITE); } ();
 			}
 		}
-		lseek(m_fileDescriptor, 0, SEEK_SET);
+		() @trusted { lseek(m_fileDescriptor, 0, SEEK_SET); } ();
 
 		logDebug("opened file %s with %d bytes as %d", path.toNativeString(), m_size, m_fileDescriptor);
 	}
@@ -153,8 +153,8 @@ final class ThreadedFileStream : FileStream {
 	{
 		version (Win32) {
 			enforce(offset <= off_t.max, "Cannot seek above 4GB on Windows x32.");
-			auto pos = .lseek(m_fileDescriptor, cast(off_t)offset, SEEK_SET);
-		} else auto pos = .lseek(m_fileDescriptor, offset, SEEK_SET);
+			auto pos = () @trusted { return .lseek(m_fileDescriptor, cast(off_t)offset, SEEK_SET); } ();
+		} else auto pos = () @trusted { return .lseek(m_fileDescriptor, offset, SEEK_SET); } ();
 		enforce(pos == offset, "Failed to seek in file.");
 		m_ptr = offset;
 	}
@@ -164,7 +164,7 @@ final class ThreadedFileStream : FileStream {
 	void close()
 	{
 		if( m_fileDescriptor != -1 && m_ownFD ){
-			.close(m_fileDescriptor);
+			() @trusted { .close(m_fileDescriptor); } ();
 			m_fileDescriptor = -1;
 		}
 	}

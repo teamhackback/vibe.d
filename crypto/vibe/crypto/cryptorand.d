@@ -74,7 +74,7 @@ final class SystemRNG : RandomNumberStream {
 		version(Windows)
 		{
 			//init cryptographic service provider
-			if(0 == CryptAcquireContext(&this.hCryptProv, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
+			if(0 == () @trusted { return CryptAcquireContext(&this.hCryptProv, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT); } ())
 			{
 				throw new CryptoException(text("Cannot init SystemRNG: Error id is ", GetLastError()));
 			}
@@ -99,10 +99,10 @@ final class SystemRNG : RandomNumberStream {
 		}
 	}
 
-	~this()
+	version(Windows)
 	{
-		version(Windows)
-		{
+		~this()
+		@trusted {
 			CryptReleaseContext(this.hCryptProv, 0);
 		}
 	}
