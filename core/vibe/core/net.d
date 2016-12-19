@@ -181,9 +181,6 @@ struct NetworkAddress {
 				default: assert(false, "Got unsupported address family from libasync.");
 				case AddressFamily.INET: this.addr_ip4 = *addr.sockAddrInet4; break;
 				case AddressFamily.INET6: this.addr_ip6 = *addr.sockAddrInet6; break;
-				version (Posix) {
-					case AddressFamily.UNIX: this.addr_unix = *addr.sockAddrUnix; break;
-				}
 			}
 		}
 
