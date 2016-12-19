@@ -1061,7 +1061,7 @@ private HTTPServerRequestDelegate jsonMethodHandler(alias Func, size_t ridx, T)(
 				if (auto pv = fieldname in req.headers)
 					v = fromRestString!PT(*pv);
 			} else static if (sparam.kind == ParameterKind.attributed) {
-				static if (!__traits(compiles, () @safe { } ()))
+				static if (!__traits(compiles, () @safe { computeAttributedParameterCtx!(Func, pname)(inst, req, res); } ()))
 					pragma(msg, "Non-@safe @before evaluators are deprecated - annotate evaluator function for parameter "~pname~" of "~T.stringof~"."~Method~" as @safe.");
 				v = () @trusted { return computeAttributedParameterCtx!(Func, pname)(inst, req, res); } ();
 			} else static if (sparam.kind == ParameterKind.internal) {
