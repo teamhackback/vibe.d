@@ -92,7 +92,7 @@ WebSocket connectWebSocket(URL url, const(HTTPClientSettings) settings = default
 		port = (use_tls) ? 443 : 80;
 
 	static struct ConnInfo { string host; ushort port; bool useTLS; string proxyIP; ushort proxyPort; }
-	static FixedRingBuffer!(Tuple!(ConnInfo, ConnectionPool!HTTPClient), 16) s_connections;
+	static vibe.utils.array.FixedRingBuffer!(Tuple!(ConnInfo, ConnectionPool!HTTPClient), 16) s_connections;
 	auto   ckey = ConnInfo(host, port, use_tls, settings ? settings.proxyURL.host : null, settings ? settings.proxyURL.port : 0);
 
 	ConnectionPool!HTTPClient pool;

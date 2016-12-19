@@ -212,7 +212,7 @@ unittest {
 auto connectHTTP(string host, ushort port = 0, bool use_tls = false, const(HTTPClientSettings) settings = null)
 {
 	static struct ConnInfo { string host; ushort port; bool useTLS; string proxyIP; ushort proxyPort; NetworkAddress bind_addr; }
-	static FixedRingBuffer!(Tuple!(ConnInfo, ConnectionPool!HTTPClient), 16) s_connections;
+	static vibe.utils.array.FixedRingBuffer!(Tuple!(ConnInfo, ConnectionPool!HTTPClient), 16) s_connections;
 
 	auto sttngs = settings ? settings : defaultSettings;
 

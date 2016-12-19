@@ -68,7 +68,7 @@ private final class TaskPipeImpl {
 	private {
 		Mutex m_mutex;
 		InterruptibleTaskCondition m_condition;
-		FixedRingBuffer!ubyte m_buffer;
+		vibe.utils.array.FixedRingBuffer!ubyte m_buffer;
 		bool m_closed = false;
 		bool m_growWhenFull;
 	}
