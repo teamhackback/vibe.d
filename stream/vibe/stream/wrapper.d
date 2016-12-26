@@ -285,7 +285,9 @@ struct StreamOutputRange(OutputStream)
 @safe:
 
 	private {
-		OutputStream m_stream;
+		// DMDBUG: this should read just "OutputStream", but https://issues.dlang.org/show_bug.cgi?id=16980
+		// kicks in. Using InterfaceProxy seems to work around it.
+		InterfaceProxy!(.OutputStream) m_stream;
 		size_t m_fill = 0;
 		ubyte[256] m_data = void;
 	}
