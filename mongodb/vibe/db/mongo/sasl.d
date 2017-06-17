@@ -151,7 +151,7 @@ private DigestType!SHA1 pbkdf2(const ubyte[] password, const ubyte[] salt, int i
 	return current;
 }
 
-static this()
+shared static this()
 {
 	g_rng = new SHA1HashMixerRNG();
 }
